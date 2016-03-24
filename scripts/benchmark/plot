@@ -1,0 +1,419 @@
+#!/usr/bin/env Rscript --vanilla
+#
+# R analysis for post-processing output from the accompanying benchmark script.
+#
+# See ./plot --help for usage.
+
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(grid) )    # unit
+suppressPackageStartupMessages(library(optparse))
+suppressPackageStartupMessages(library(readr))
+suppressPackageStartupMessages(library(scales))  # comma
+suppressPackageStartupMessages(library(stringr)) # str_match
+suppressPackageStartupMessages(library(tidyr))
+
+# =============================================================================
+#                            Command Line Parsing
+# =============================================================================
+
+option_list <- list(
+  make_option(c("-E", "--export"), action = "store_true", default = F,
+              help = "generate export component plots [%default]"),
+  make_option(c("-I", "--import"), action = "store_true", default = F,
+              help = "generate import component plots [%default]"),
+  make_option(c("-e", "--extension"), default = "pdf",
+              help = "the image format of the output [%default]"),
+  make_option(c("-f", "--font-size"), type = "integer", default = 12,
+              metavar = "number", help = "font base size [%default]"),
+  make_option(c("-w", "--write"), default = ".",
+              help = "write plots to given path [%default]"),
+  make_option(c("-s", "--squeeze"), action = "store_true", default = F,
+              help = "make plot edges as small as possible [%default]"),
+  make_option("--width", default = NA, help = "plot width [%default]"),
+  make_option("--height", default = NA, help = "plot height [%default]"),
+  make_option("--scale", default = 1, help = "plot scaling factor [%default]"),
+  make_option(c("-h", "--help"), action = "store_true", default = F,
+              help = "display this help and exit")
+)
+
+parser <- OptionParser(usage = "%prog [options] dir",
+                       option_list = option_list, add_help_option = F)
+arguments <- parse_args(parser, positional_arguments = c(0, 1))
+opt <- arguments$options
+path <- arguments$args
+
+# Manually check for existence of mandatory argument for nicer error message.
+if (length(path) == 0)
+  stop(parser@usage) #
+if (file.access(path, mode = 0) == -1)
+  stop(sprintf("directory does not exist: %s", path))
+
+if (!(opt$export || opt$import))
+  stop("neither --export (-E) nor --import (-I) given")
+
+# =============================================================================
+#                                Global Setup
+# =============================================================================
+
+# Avoid scientific notation for floating point values.
+options(scipen = 100000)
+
+# Use a clean theme by default, calibrated according to given options.
+theme_set(theme_bw(base_size = opt$`font-size`))
+message("using base font size of ", opt$`font-size`)
+
+theme_update(
+  legend.key = element_blank(),
+  legend.background = element_blank(),
+  plot.margin = unit(rep(0, 4), "npc")
+)
+
+# Reduce plot size if requested.
+if (opt$squeeze)
+  theme_update(
+    legend.key.width = unit(3, "lines"),
+    plot.margin = unit(rep(0, 4), "lines")
+  )
+
+# =============================================================================
+#                                   Helpers
+# =============================================================================
+
+# Saves a plot using ggsave() according to parameters given on command line.
+save_plot <- function(plot, name, scale = opt$scale, width = opt$width,
+                      height = opt$height) {
+  filename <- paste0(name, '.', opt$extension)
+  message(sprintf("saving plot %s to %s", filename, opt$write))
+  ggsave(filename = filename, plot = plot, path = opt$write,
+         scale = scale, width = width, height = height)
+}
+
+# =============================================================================
+#                                 Data Import
+# =============================================================================
+
+# Parses the working directory.
+parse_workdir <- function(workdir, n = 1) {
+  rx <- ".*vast-(\\w+)-C-(\\d+)-T-(\\d+)-B-(\\d+)-P-(\\d+)-R-(\\d+)/vast/log/(\\d+)_(\\d+).*"
+  m <- str_match(workdir, rx)
+  data <- data.frame(Type = as.factor(m[2]),
+                     Cores = as.integer(m[3]),
+                     #Throughput = as.integer(m[4]),
+                     Batch = as.integer(m[5]),
+                     Partitions = as.integer(m[6]),
+                     Run = as.integer(m[7]))
+  do.call(rbind, replicate(n, data, simplify = FALSE))
+}
+
+# Parses accounting.log files from benchmark output.
+ingest.accounting_log <- function(path) {
+  data <- read_tsv(path)
+  meta <- parse_workdir(path, nrow(data))
+  tbl_df(cbind(meta, data))
+}
+
+# Import all accounting.log files in the current directory.
+accounting_log <- list.files(path = path, pattern = "accounting\\.log",
+                             recursive = TRUE, full.names = TRUE)
+if (length(accounting_log) == 0)
+  stop(sprintf("no accounting.log found in %s", path))
+
+# Gather all accounting data together in a single big table.
+message(sprintf("combining %d accounting.log files", length(accounting_log)))
+measurements <- do.call(rbind, lapply(accounting_log, ingest.accounting_log))
+
+# =============================================================================
+#                               Index Throuput
+# =============================================================================
+
+# Crunch data
+make.import.data <- function(data) {
+  result <- list()
+  result$import <- data %>%
+    filter(Partitions == 1, Run == 1, actor == "partition") %>%
+    select(-actor, -time, -host, -pid) %>%
+    # Number each 4 consecutive indexing-* measurements.
+    mutate(Measure = as.vector(sapply(1:(length(key)/4),
+                                    function(i) rep(i, 4)))) %>%
+    spread(key, value) %>%
+    mutate(Partition = factor(instance),
+           Partition = factor(Partition, labels = 1:length(unique(Partition))),
+           Start = indexing.start/1e6,
+           Stop = indexing.stop/1e6,
+           ZeroStart = Start,
+           Events = indexing.events,
+           Rate = indexing.rate) %>%
+    group_by(Type, Cores, Batch, Partitions) %>%
+    mutate_each(funs(min), ZeroStart) %>%
+    mutate(Start = Start-ZeroStart, Stop = Stop-ZeroStart) %>%
+    select(-Measure, -ZeroStart, -instance, -starts_with("indexing"))
+  # Import rates from ARCHIVE and SOURCE.
+  rate.archive_source <- data %>%
+    filter(actor %in% c("source","archive"),
+           key %in% c("batch.rate", "compression.rate")) %>%
+    select(-time, -host, -pid, -key, -Run, Instance = instance) %>%
+    group_by(Type, Cores, Batch, actor) %>%
+    summarize(Value = median(value)) %>%
+    spread(actor, Value) %>%
+    rename(Archive = archive, Source = source)
+  # Import rates at INDEX.
+  rate.index <- result$import %>%
+    group_by(Type, Cores, Batch) %>%
+    summarize(Index = sum(Events)/(max(Stop)-min(Start)))
+  result$rates <- left_join(rate.archive_source, rate.index,
+                            c("Type", "Cores", "Batch")) %>%
+    gather(key, value, Index, Archive, Source) %>%
+    mutate(Aspect = key)
+  result
+}
+
+# Plots one line segment for the time it takes to index an event batch. The '|'
+# denotes the start time and the circle the end time. The fill color is scaled
+# according to the per-second event rate.
+plot.index.batch <- function(data, type, batch = 131072, scales = "free") {
+  data$import %>%
+    filter(Type == type, Batch == batch) %>%
+    ungroup %>%
+    mutate(Batch = seq_along(Batch)) %>%
+    ggplot(aes(y = Batch)) +
+      geom_segment(aes(x = Start, xend = Stop, yend = Batch)) +
+      geom_point(aes(x = Start), shape = "|") +
+      geom_point(aes(x = Stop, fill = Rate), shape = 21, alpha = .5) +
+      scale_fill_gradient(low = "red", high = "green") +
+      scale_y_continuous(breaks = NULL, labels = NULL) +
+      labs(x = "Runtime (seconds)", y = "Batch") +
+      facet_wrap(~ Cores, scales = scales)
+}
+
+# Plots the aggregate number of events the INDEX can handle as follows. We
+# divide the total number of events process by the total runtime (max(stop) -
+# min(start)).
+plot.rates <- function(data, batch = NULL) {
+  rates <- data$rates
+  if (! is.null(batch))
+    rates <- rates %>% filter(Batch == batch)
+  p <- rates  %>%
+    ggplot(aes(x = Cores, y = value, color = Aspect)) +
+      geom_line() +
+      geom_point(aes(shape = Aspect)) +
+      #scale_y_continuous(breaks = seq(0.5,3,0.5)*1e5, labels = comma) +
+      scale_y_log10(breaks = 2^(10:25), labels = comma) +
+      ylab("Events/sec") +
+      #theme(legend.position = "bottom")
+      theme(legend.position = c(1,0), legend.justification = c(1,0))
+  if (! is.null(batch))
+    p <- p + facet_wrap(~ Type)
+  else
+    p <- p + facet_grid(Type ~ Batch, scales = "free")
+  p
+}
+
+if (opt$import) {
+  message("producing import plots")
+  data.import <- make.import.data(measurements)
+  for (type in unique(measurements$Type))
+    for (batch in unique(measurements$Batch))
+      for (scale in c("free", "free_y")) {
+        scale.name <- ifelse(scale == "free_y", "fixed", "free")
+        filename <- paste(type, batch, "index-batch", scale.name, sep = "-")
+        plot.index.batch(data.import, type, batch, scale) %>%
+        save_plot(filename, width=12, height=9)
+      }
+  for (batch in unique(measurements$Batch)) {
+    filename <- paste(paste("rates", batch, sep = "-"), "pdf", sep = ".")
+    plot.rates(data.import, batch) %>%
+      save_plot(filename, width = 15, height = 5)
+  }
+  plot.rates(data.import) %>% save_plot("rates-all", height=7, width=10)
+}
+
+# =============================================================================
+#                               Query Latency
+# =============================================================================
+
+# Generates per-query statistics.
+make.export.data <- function(data, queries) {
+  result <- list()
+  # Entries which can occur more than once per EXPORTER.
+  multi_rows <- c("hits.arrived", "hits.count", "chunk.done",
+                  "chunk.candidates", "chunk.results", "chunk.events")
+  # Grouping to identify a single EXPORTER instance.
+  grouping <- c("host", "pid", "instance")
+  grouping.formulas <- sapply(grouping, . %>% {as.formula(paste0('~', .))})
+  group_by_exporter <- function(data) group_by_(data, .dots = grouping.formulas)
+  # Per-EXPORTER statistics.
+  result$exporter <- data %>%
+    filter(actor == "exporter", ! key %in% multi_rows)  %>%
+    select(-time, -actor) %>%
+    group_by_exporter %>%
+    spread(key, value) %>%
+    mutate(hits.first = hits.first-start,
+           taste = taste-start,
+           hits.done = hits.done-start,
+           end = end-start,
+           start = start-start) %>%
+    select(-start) %>%
+    left_join(queries, setdiff(names(queries), "query"))
+  # Compute start times to subtract them below -> queries start at 0.
+  start_times <- data %>%
+    filter(actor == "exporter", key == "start") %>%
+    group_by_exporter %>%
+    spread(key, value) %>%
+    select(host, pid, instance, start)
+  # Per-hits statistics.
+  result$hits <- data %>%
+    filter(actor == "exporter", key %in% c("hits.arrived", "hits.count")) %>%
+    group_by_exporter %>%
+    mutate(time = rep(1:(length(key)/2), each = 2)) %>%
+    spread(key, value) %>%
+    select(-time, -actor) %>%
+    left_join(queries, setdiff(names(queries), "query")) %>%
+    left_join(start_times, grouping) %>%
+    ungroup %>%
+    mutate(hits.arrived = hits.arrived-start) %>%
+    select(-start)
+  # Per-chunk statistics.
+  result$chunks <- data %>%
+    filter(actor == "exporter",
+           key %in% c("chunk.done", "chunk.results", "chunk.events")) %>%
+    group_by_exporter %>%
+    mutate(time = rep(1:(length(key)/3), each = 3)) %>%
+    spread(key, value) %>%
+    select(-time, -actor) %>%
+    left_join(queries, setdiff(names(queries), "query")) %>%
+    left_join(start_times, grouping) %>%
+    ungroup %>%
+    mutate(chunk.done = chunk.done-start) %>%
+    select(-start)
+  result
+}
+
+#
+# Plot
+#
+
+# Plot detailed query pipeline to compare across queries.
+plot.pipeline.query <- function(data, cores = 12, batch = NULL) {
+  exporter <- data$exporter %>% filter(Cores == cores)
+  hits <- data$hits %>% filter(Cores == cores)
+  chunks <- data$chunks %>% filter(Cores == cores)
+  if (!is.null(batch)) {
+    exporter <- exporter %>% filter(Batch == batch)
+    hits <- hits %>% filter(Batch == batch)
+    chunks <- chunks %>% filter(Batch == batch)
+  }
+  gathered <- exporter %>%
+    mutate(Index = hits.first, Taste = taste-hits.first, Query = end-taste) %>%
+    gather(key, value, Index, Taste, Query) %>%
+    ungroup %>% # without ungrouping, the subsequent factor() call fails
+    mutate(query = factor(query, rev(sort(unique(query)))))
+  p <- ggplot(data = NULL, aes(x = query)) +
+    geom_bar(data = gathered, aes(fill = key, y = value), stat = "identity") +
+    geom_bar(data = exporter, aes(y = hits.done),
+             stat = "identity", color = "black", alpha = 0.1) +
+    geom_point(data = hits, aes(x = query, y = hits.arrived, size = hits.count),
+               shape = 4) +
+    geom_point(data = chunks, aes(x = query, y = chunk.done,
+                                  size = chunk.results), shape = 1) +
+    scale_fill_discrete(name = "Time until") +
+    scale_size_continuous(name = "Count", labels = comma) +
+    scale_y_continuous(breaks = pretty_breaks(10),
+                       labels = function(x) comma(x/1e6)) +
+    labs(x = "Query", y = expression(paste("Latency (seconds)"))) +
+    coord_flip()
+  if (is.null(batch))
+    return(p + facet_grid(Batch ~ ., scales = "free"))
+  p
+}
+
+# Plots the query pipeline as a function of cores, one window per query.
+plot.pipeline.scale <- function(data, batch = 131072) {
+  exporter <- data$exporter %>% filter(Batch == batch)
+  stages <- exporter %>%
+    mutate(Index = hits.first, Taste = taste-hits.first, Query = end-taste) %>%
+    gather(key, value, Index, Taste, Query)
+#  index <- exporter %>%
+#    mutate(Index = hits.done, End = end-hits.done) %>%
+#    gather(key, value, Index, End)
+  ggplot(data = NULL, aes(x = Cores)) +
+    geom_bar(data = stages, aes(fill = key, y = value), stat = "identity") +
+    geom_bar(data = exporter, aes(y = hits.done),
+             stat = "identity", color = "black", alpha = 0) +
+#    geom_bar(data = index, aes(fill = key, y = value),
+#             stat = "identity", color = "black", alpha = 0) +
+    scale_fill_discrete(name = "Time until") +
+    scale_y_continuous(breaks = pretty_breaks(10),
+                       labels = function(x) comma(x/1e6)) +
+    labs(x = "Cores", y = expression(paste("Latency (seconds)"))) +
+    facet_grid(~ query, scales = "free")
+}
+
+# Plots index latency as a function of cores.
+plot.latency.index <- function(exporter, batch = NULL, ylim = 20) {
+  if (!is.null(batch))
+    exporter <- exporter %>% filter(Batch == batch)
+  p <- exporter %>%
+    rename(Query = query) %>%
+    ggplot() +
+      geom_line(aes(x = Cores, y = hits.done, color = Query, shape = Query)) +
+      geom_point(aes(x = Cores, y = hits.done, color = Query, shape = Query)) +
+      scale_y_continuous(breaks = pretty_breaks(10),
+                         limits = c(0, ylim*1e6),
+                         labels = function(x) comma(x/1e6)) +
+      scale_shape_manual(values = 1:10) +
+      ylab("Latency (seconds)")
+  if (is.null(batch))
+    return(p + facet_grid(. ~ Batch))
+  p
+}
+
+# Plots index runtime as a function of cores.
+plot.latency.index.ribbon <- function(data, batch = 131072) {
+  data$exporter %>%
+    filter(Batch == batch) %>%
+    rename(Query = query) %>%
+    ggplot() +
+      geom_ribbon(aes(x = Cores, ymin = hits.first, ymax = hits.done)) +
+      scale_y_continuous(breaks = pretty_breaks(10),
+                         labels = function(x) comma(x/1e6)) +
+      ylab("Latency (seconds)") +
+      facet_wrap(~ Query, scales = "free")
+}
+
+# Parses query files from benchmark output.
+ingest.query_log <- function(path) {
+  s <- parse_workdir(path)
+  s$pid <- as.integer(strsplit(basename(dirname(path)), '_')[[1]][2])
+  s$query <- as.factor(scan(path, character(), quiet = TRUE))
+  s
+}
+
+if (opt$export) {
+  # Generate query labels from query.log files.
+  query_log <- list.files(path = path, pattern = "query\\.log",
+                          recursive = TRUE, full.names = TRUE)
+  if (length(query_log) == 0)
+    stop(sprintf("no query.log found in %s", path))
+  message("reading query.log")
+  queries <- do.call(rbind, lapply(query_log, ingest.query_log))
+  message("producing export plots")
+  data.export <- make.export.data(measurements, queries)
+  for (batch in 2^(16:19)) {
+    # Pipeline
+    plot.pipeline.query(data.export, cores = 12, batch = batch) %>%
+      save_plot(paste0("pipeline-", batch), width = 10, height = 5)
+    # Pipeline over cores
+    plot.pipeline.scale(data.export, batch = batch) %>%
+      save_plot(paste0("pipeline-scale-", batch), width = 10, height = 5)
+    # Index over cores (ribbon)
+    plot.latency.index.ribbon(data.export, batch = batch) %>%
+      save_plot(paste0("index-ribbon-", batch), width = 10, height = 5)
+    # Index over cores (lines)
+    index_data <- data.export$exporter %>% filter(Cores <= 16)
+    plot.latency.index(index_data, batch = 2^16, ylim = 17) %>%
+      save_plot(paste("index-latency-", 2^16), width = 10, height = 5)
+  }
+}
+
+# vim: ft=r:

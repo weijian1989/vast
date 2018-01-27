@@ -11,8 +11,8 @@
  * contained in the LICENSE file.                                             *
  ******************************************************************************/
 
-#ifndef VAST_SYSTEM_EXPORTER_HPP
-#define VAST_SYSTEM_EXPORTER_HPP
+#ifndef VAST_SYSTEM_query_HPP
+#define VAST_SYSTEM_query_HPP
 
 #include <chrono>
 #include <deque>
@@ -20,7 +20,7 @@
 #include <unordered_map>
 
 #include "vast/aliases.hpp"
-#include "vast/ids.hpp"
+#include "vast/bitmap.hpp"
 #include "vast/expression.hpp"
 #include "vast/query_options.hpp"
 #include "vast/uuid.hpp"
@@ -31,28 +31,29 @@
 
 namespace vast::system {
 
-struct exporter_state {
+struct query_state {
   archive_type archive;
   caf::actor index;
   caf::actor sink;
   accountant_type accountant;
-  ids hits;
-  ids unprocessed;
+  bitmap hits;
+  bitmap unprocessed;
   std::unordered_map<type, expression> checkers;
+  std::deque<event> candidates;
   std::vector<event> results;
   std::chrono::steady_clock::time_point start;
   query_statistics stats;
   uuid id;
-  static inline const char* name = "exporter";
+  char const* name = "query";
 };
 
-/// The EXPORTER receives index hits, looks up the corresponding events in the
+/// The query receives index hits, looks up the corresponding events in the
 /// archive, and performs a candidate check to select the resulting stream of
 /// matching events.
 /// @param self The actor handle.
 /// @param ast The AST of query.
 /// @param qos The query options.
-caf::behavior exporter(caf::stateful_actor<exporter_state>* self,
+caf::behavior query(caf::stateful_actor<query_state>* self,
                        expression expr, query_options opts);
 
 } // namespace vast::system

@@ -44,11 +44,14 @@ set(libvast_sources
   src/concept/hashable/xxhash.cpp
   src/detail/adjust_resource_consumption.cpp
   src/detail/compressedbuf.cpp
-  src/detail/line_range.cpp
-  src/detail/fdistream.cpp
+  src/detail/event_sink.cpp
+  src/detail/event_source.cpp
+  src/detail/event_stage.cpp
   src/detail/fdinbuf.cpp
+  src/detail/fdistream.cpp
   src/detail/fdostream.cpp
   src/detail/fdoutbuf.cpp
+  src/detail/line_range.cpp
   src/detail/make_io_stream.cpp
   src/detail/mmapbuf.cpp
   src/detail/posix.cpp
@@ -222,6 +225,7 @@ set(tests
   test/system/key_value_store.cpp
   test/system/partition.cpp
   test/system/queries.cpp
+  test/system/query_result.cpp
   test/system/replicated_store.cpp
   test/system/sink.cpp
   test/system/source.cpp

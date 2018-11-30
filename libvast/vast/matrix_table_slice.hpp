@@ -105,8 +105,13 @@ public:
 
   void append_column_to_index(size_type col, value_index& idx) const override {
     auto row = offset();
-    for (auto& x : column(col))
-      idx.append(make_view(x), row++);
+    auto f = [&](auto& dref) {
+      for (auto& x : column(col))
+        dref.fast_append(make_view(x), row++);
+    };
+    caf::visit(
+      detail::value_index_inspect_helper::down_cast<decltype(f)>(idx, f),
+      layout().fields[col].type);
   }
 
   caf::atom_value implementation_id() const noexcept override {

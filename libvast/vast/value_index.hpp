@@ -83,7 +83,6 @@ public:
 protected:
   value_index() = default;
 
-private:
   virtual bool append_impl(data_view x, id pos) = 0;
 
   virtual expected<ids>
@@ -145,7 +144,7 @@ expected<ids> container_lookup(const Index& idx, relational_operator op,
 
 /// An index for arithmetic values.
 template <class T, class Binner = void>
-class arithmetic_index : public value_index {
+class arithmetic_index final : public value_index {
 public:
   using value_type =
     std::conditional_t<
@@ -199,6 +198,21 @@ public:
   template <class Inspector>
   friend auto inspect(Inspector& f, arithmetic_index& idx) {
     return f(static_cast<value_index&>(idx), idx.bmi_);
+  }
+
+  void fast_append(data_view x, id pos) {
+    auto off = mask_.size();
+    if (pos < off)
+      // Can only append at the end
+      return;
+    if (caf::holds_alternative<caf::none_t>(x)) {
+      none_.append_bits(false, pos - none_.size());
+      none_.append_bit(true);
+    } else  {
+      append_impl(x, pos);
+    }
+    mask_.append_bits(false, pos - off);
+    mask_.append_bit(true);
   }
 
 private:
@@ -255,6 +269,21 @@ public:
   friend auto inspect(Inspector& f, string_index& idx) {
     return f(static_cast<value_index&>(idx), idx.length_, idx.chars_);
   }
+  void fast_append(data_view x, id pos) {
+    auto off = mask_.size();
+    if (pos < off)
+      // Can only append at the end
+      return;
+    if (caf::holds_alternative<caf::none_t>(x)) {
+      none_.append_bits(false, pos - none_.size());
+      none_.append_bit(true);
+    } else  {
+      append_impl(x, pos);
+    }
+    mask_.append_bits(false, pos - off);
+    mask_.append_bit(true);
+  }
+
 
 private:
   /// The index which holds each character.
@@ -288,6 +317,21 @@ public:
   friend auto inspect(Inspector& f, address_index& idx) {
     return f(static_cast<value_index&>(idx), idx.bytes_, idx.v4_);
   }
+  void fast_append(data_view x, id pos) {
+    auto off = mask_.size();
+    if (pos < off)
+      // Can only append at the end
+      return;
+    if (caf::holds_alternative<caf::none_t>(x)) {
+      none_.append_bits(false, pos - none_.size());
+      none_.append_bit(true);
+    } else  {
+      append_impl(x, pos);
+    }
+    mask_.append_bits(false, pos - off);
+    mask_.append_bit(true);
+  }
+
 
 private:
   void init();
@@ -312,6 +356,21 @@ public:
   friend auto inspect(Inspector& f, subnet_index& idx) {
     return f(static_cast<value_index&>(idx), idx.network_, idx.length_);
   }
+  void fast_append(data_view x, id pos) {
+    auto off = mask_.size();
+    if (pos < off)
+      // Can only append at the end
+      return;
+    if (caf::holds_alternative<caf::none_t>(x)) {
+      none_.append_bits(false, pos - none_.size());
+      none_.append_bit(true);
+    } else  {
+      append_impl(x, pos);
+    }
+    mask_.append_bits(false, pos - off);
+    mask_.append_bit(true);
+  }
+
 
 private:
   void init();
@@ -347,6 +406,21 @@ public:
     return f(static_cast<value_index&>(idx), idx.num_, idx.proto_);
   }
 
+  void fast_append(data_view x, id pos) {
+    auto off = mask_.size();
+    if (pos < off)
+      // Can only append at the end
+      return;
+    if (caf::holds_alternative<caf::none_t>(x)) {
+      none_.append_bits(false, pos - none_.size());
+      none_.append_bit(true);
+    } else  {
+      append_impl(x, pos);
+    }
+    mask_.append_bits(false, pos - off);
+    mask_.append_bit(true);
+  }
+
 private:
   void init();
 
@@ -374,6 +448,21 @@ public:
 
   friend void serialize(caf::serializer& sink, const sequence_index& idx);
   friend void serialize(caf::deserializer& source, sequence_index& idx);
+
+  void fast_append(data_view x, id pos) {
+    auto off = mask_.size();
+    if (pos < off)
+      // Can only append at the end
+      return;
+    if (caf::holds_alternative<caf::none_t>(x)) {
+      none_.append_bits(false, pos - none_.size());
+      none_.append_bit(true);
+    } else  {
+      append_impl(x, pos);
+    }
+    mask_.append_bits(false, pos - off);
+    mask_.append_bit(true);
+  }
 
 private:
   void init();
@@ -419,7 +508,8 @@ struct value_index_inspect_helper {
 
   template <class Inspector>
   struct down_cast {
-    using result_type = typename Inspector::result_type;
+    using result_type = decltype(
+      std::declval<Inspector&>()(std::declval<arithmetic_index<boolean>&>()));
 
     down_cast(value_index& idx, Inspector& f) : idx_{idx}, f_{f} {
       // nop

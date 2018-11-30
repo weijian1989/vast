@@ -42,8 +42,18 @@ caf::error default_table_slice::deserialize(caf::deserializer& source) {
 
 void default_table_slice::append_column_to_index(size_type col,
                                                  value_index& idx) const {
+  /*
   for (size_type row = 0; row < rows(); ++row)
     idx.append(make_view(caf::get<vector>(xs_[row])[col]), offset() + row);
+  */
+  auto off = offset();
+  auto f = [&](auto& dref) {
+    for (size_type row = 0; row < rows(); ++row)
+      dref.fast_append(make_view(caf::get<vector>(xs_[row])[col]), off++);
+  };
+  caf::visit(
+    detail::value_index_inspect_helper::down_cast<decltype(f)>(idx, f),
+    layout().fields[col].type);
 }
 
 data_view default_table_slice::at(size_type row, size_type col) const {

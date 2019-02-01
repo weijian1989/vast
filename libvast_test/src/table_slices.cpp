@@ -49,13 +49,27 @@ table_slices::table_slices() : sink{sys, buf} {
     {"l", vector_type{count_type{}}},
     {"m", set_type{boolean_type{}}},
     {"n", map_type{count_type{}, boolean_type{}}},
+    {"p", map_type{count_type{}, vector_type{count_type{}}}},
+    {"q", count_type{}},
+    {"r", string_type{}},
+    {"s", real_type{}},
+    {"t", vector_type{count_type{}}},
+    {"u", vector_type{string_type{}}},
   };
   // Initialize test data.
   auto rows = std::vector<std::string>{
     "[T, +7, 42, 4.2, 1337ms, 2018-12-24, \"foo\", /foo.*bar/, 127.0.0.1,"
-    " 10.0.0.0/8, 80/tcp, [1, 2, 3], {T, F}, {1 -> T, 2 -> F, 3 -> T}]",
+    " 10.0.0.0/8, 80/tcp, [1, 2, 3], {T, F}, {1 -> T, 2 -> F, 3 -> T},"
+    " {4 -> []},"
+    " 0, \"f\", 999.99,"
+    " [0,0,0,0,0],"
+    " [\"string\"]]",
     "[F, -7, 43, 0.42, -1337ms, 2018-12-25, \"bar\", nil, ::1, 64:ff9b::/96,"
-    " 53/udp, [], {}, {-}]",
+    " 53/udp, [], {}, {-},"
+    " {1 -> [2, 3]},"
+    " 4, \"5\", 6.7,"
+    " [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16],"
+    " [\"0\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\"]]",
   };
   for (auto& row : rows) {
     auto xs = unbox(to<data>(row));

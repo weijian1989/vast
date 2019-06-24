@@ -195,10 +195,8 @@ void print(std::string& buf, timestamp x) {
   print_number(buf, integer{m.count()}, 2);
   buf += ':';
   print_number(buf, integer{s.count()}, 2);
-  if (sub_secs.count() > 0) {
-    buf += '.';
-    print_number(buf, integer{sub_secs.count()});
-  }
+  buf += '.';
+  print_number(buf, integer{sub_secs.count()});
 }
 
 void print(std::string& buf, const std::string& x) {

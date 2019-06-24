@@ -11,35 +11,42 @@
  * contained in the LICENSE file.                                             *
  ******************************************************************************/
 
-#pragma once
+#include "vast/format/ascii.hpp"
 
-#include <iosfwd>
-#include <memory>
-#include <string>
+#include <ostream>
 
-#include "vast/format/writer.hpp"
+#include "vast/error.hpp"
+#include "vast/print.hpp"
+#include "vast/table_slice.hpp"
 
 namespace vast::format::ascii {
 
-class writer : public format::writer {
-public:
-  writer() = default;
+writer::writer(std::unique_ptr<std::ostream> out) : out_(std::move(out)) {
+  // nop
+}
 
-  writer(writer&&) = default;
+caf::expected<void> writer::write(const event&) {
+  return ec::unimplemented;
+}
 
-  explicit writer(std::unique_ptr<std::ostream> out);
+caf::error writer::write(const table_slice& x) {
+  for (size_t row = 0; row < x.rows(); ++row) {
+    buf_ += '<';
+    print(buf_, x.at(row, 0));
+    for (size_t column = 1; column < x.columns(); ++column) {
+      buf_ += ", ";
+      print(buf_, x.at(row, column));
+    }
+    buf_ += '>';
+    buf_ += '\n';
+    *out_ << buf_;
+    buf_.clear();
+  }
+  return caf::none;
+}
 
-  writer& operator=(writer&&) = default;
-
-  caf::expected<void> write(const event& x) override;
-
-  caf::error write(const table_slice& x) override;
-
-  const char* name() const override;
-
-private:
-  std::string buf_;
-  std::unique_ptr<std::ostream> out_;
-};
+const char* writer::name() const {
+  return "ascii-writer";
+}
 
 } // namespace vast::format::ascii

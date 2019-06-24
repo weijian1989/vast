@@ -51,6 +51,7 @@ set(libvast_sources
   src/expression.cpp
   src/expression_visitors.cpp
   src/filesystem.cpp
+  src/format/ascii.cpp
   src/format/bgpdump.cpp
   src/format/csv.cpp
   src/format/json.cpp

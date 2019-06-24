@@ -36,6 +36,7 @@ class json;
 class meta_index;
 class path;
 class pattern;
+class pattern_view;
 class port;
 class schema;
 class segment;
@@ -64,6 +65,7 @@ struct enumeration_type;
 struct integer_type;
 struct key_extractor;
 struct map_type;
+struct map_view_ptr;
 struct none_type;
 struct offset;
 struct pattern_type;
@@ -73,16 +75,21 @@ struct real_type;
 struct record_type;
 struct segment_header;
 struct set_type;
+struct set_view_ptr;
 struct string_type;
 struct subnet_type;
 struct timespan_type;
 struct timestamp_type;
 struct vector_type;
+struct vector_view_ptr;
 
 // -- templates ----------------------------------------------------------------
 
 template <class>
 class scope_linked;
+
+template <class T>
+class container_view_handle;
 
 // -- free functions -----------------------------------------------------------
 
@@ -103,5 +110,8 @@ using value_index_ptr = std::unique_ptr<value_index>;
 // -- miscellaneous ------------------------------------------------------------
 
 using ids = bitmap; // temporary; until we have a real type for 'ids'
+using map_view_handle = container_view_handle<map_view_ptr>;
+using set_view_handle = container_view_handle<set_view_ptr>;
+using vector_view_handle = container_view_handle<vector_view_ptr>;
 
 } // namespace vast

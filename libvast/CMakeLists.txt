@@ -69,6 +69,7 @@ set(libvast_sources
   src/operator.cpp
   src/pattern.cpp
   src/port.cpp
+  src/print.cpp
   src/row_major_matrix_table_slice_builder.cpp
   src/schema.cpp
   src/segment.cpp
@@ -252,6 +253,7 @@ set(tests
   test/parseable.cpp
   test/pattern.cpp
   test/port.cpp
+  test/print.cpp
   test/printable.cpp
   test/range_map.cpp
   test/save_load.cpp

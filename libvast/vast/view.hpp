@@ -108,6 +108,12 @@ struct view_trait<pattern> {
 template <class T>
 class container_view_handle;
 
+template <class>
+struct is_container_view_handle : std::false_type {};
+
+template <class T>
+struct is_container_view_handle<container_view_handle<T>> : std::true_type {};
+
 struct vector_view_ptr;
 struct set_view_ptr;
 struct map_view_ptr;
@@ -193,6 +199,22 @@ public:
 
   const auto& operator*() const {
     return *ptr_;
+  }
+
+  auto begin() {
+    return ptr_->begin();
+  }
+
+  auto end() {
+    return ptr_->end();
+  }
+
+  auto begin() const {
+    return ptr_->begin();
+  }
+
+  auto end() const {
+    return ptr_->end();
   }
 
 private:

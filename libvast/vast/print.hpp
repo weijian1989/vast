@@ -75,9 +75,7 @@ void print(std::string& buf, const std::pair<T, U>& x) {
 
 template <class... Ts>
 void print(std::string& buf, const caf::variant<Ts...>& x) {
-  auto f = [&](const auto& x) {
-    print(buf, x);
-  };
+  auto f = [&](const auto& x) { print(buf, x); };
   caf::visit(f, x);
 }
 

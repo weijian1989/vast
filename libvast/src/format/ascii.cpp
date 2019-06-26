@@ -25,10 +25,6 @@ writer::writer(std::unique_ptr<std::ostream> out) : out_(std::move(out)) {
   // nop
 }
 
-caf::expected<void> writer::write(const event&) {
-  return ec::unimplemented;
-}
-
 caf::error writer::write(const table_slice& x) {
   for (size_t row = 0; row < x.rows(); ++row) {
     buf_ += '<';

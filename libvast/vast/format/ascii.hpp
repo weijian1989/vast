@@ -31,8 +31,6 @@ public:
 
   writer& operator=(writer&&) = default;
 
-  caf::expected<void> write(const event& x) override;
-
   caf::error write(const table_slice& x) override;
 
   const char* name() const override;

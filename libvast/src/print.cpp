@@ -123,8 +123,7 @@ void print(std::string& buf, count x) {
   print_number(buf, x);
 }
 
-void print(std::string& buf, real x) {
-  static constexpr int max_digits = 10;
+void print(std::string& buf, real x, size_t max_digits) {
   // negative = positive + sign
   if (x < 0) {
     buf += '-';
@@ -147,22 +146,22 @@ void print(std::string& buf, real x) {
 void print(std::string& buf, timespan x) {
   using namespace std::chrono;
   if (is_at_least<days>(x)) {
-    print(buf, fractional_count<days>(x));
+    print(buf, fractional_count<days>(x), 2);
     buf += 'd';
   } else if (is_at_least<hours>(x)) {
-    print(buf, fractional_count<hours>(x));
+    print(buf, fractional_count<hours>(x), 2);
     buf += 'h';
   } else if (is_at_least<minutes>(x)) {
-    print(buf, fractional_count<minutes>(x));
+    print(buf, fractional_count<minutes>(x), 2);
     buf += 'm';
   } else if (is_at_least<seconds>(x)) {
-    print(buf, fractional_count<seconds>(x));
+    print(buf, fractional_count<seconds>(x), 2);
     buf += 's';
   } else if (is_at_least<milliseconds>(x)) {
-    print(buf, fractional_count<milliseconds>(x));
+    print(buf, fractional_count<milliseconds>(x), 2);
     buf += "ms";
   } else if (is_at_least<microseconds>(x)) {
-    print(buf, fractional_count<microseconds>(x));
+    print(buf, fractional_count<microseconds>(x), 2);
     buf += "us";
   } else {
     print(buf, x.count());
@@ -216,9 +215,6 @@ void print(std::string& buf, std::string_view x) {
       case '\n':
         buf += "\\n";
         break;
-      case '\\':
-        buf += "\\\\";
-        break;
       default:
         buf += c;
     }
@@ -261,7 +257,7 @@ void print(std::string& buf, port x) {
       buf += "/udp";
       break;
     case port::icmp:
-      buf += "/udp";
+      buf += "/icmp";
       break;
     default:
       buf += "/?";

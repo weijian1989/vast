@@ -32,7 +32,7 @@ void print(std::string& buf, integer x);
 
 void print(std::string& buf, count x);
 
-void print(std::string& buf, real x);
+void print(std::string& buf, real x, size_t max_digits = 10);
 
 void print(std::string& buf, timespan x);
 

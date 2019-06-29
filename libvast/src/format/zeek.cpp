@@ -11,6 +11,8 @@
  * contained in the LICENSE file.                                             *
  ******************************************************************************/
 
+#include "vast/format/zeek.hpp"
+
 #include <fstream>
 #include <iomanip>
 
@@ -27,9 +29,11 @@
 #include "vast/detail/string.hpp"
 #include "vast/error.hpp"
 #include "vast/event.hpp"
-#include "vast/format/zeek.hpp"
 #include "vast/logger.hpp"
+#include "vast/print.hpp"
+#include "vast/table_slice.hpp"
 #include "vast/table_slice_builder.hpp"
+#include "vast/time.hpp"
 
 namespace vast::format::zeek {
 namespace {
@@ -131,6 +135,7 @@ constexpr char separator = '\x09';
 constexpr char set_separator = ',';
 constexpr auto empty_field = "(empty)";
 constexpr auto unset_field = "-";
+constexpr size_t decimal_places = 6;
 
 struct time_factory {
   const char* fmt = "%Y-%m-%d-%H-%M-%S";
@@ -163,105 +168,97 @@ void print_header(const type& t, std::ostream& out) {
   out << '\n';
 }
 
-struct streamer {
-  streamer(std::ostream& out) : out_{out} {
+class streamer {
+public:
+  streamer(std::string& buf) : buf_(buf) {
+    // nop
   }
 
   template <class T>
-  void operator()(const T&, caf::none_t) const {
-    out_ << unset_field;
+  void operator()(const T&, view<caf::none_t>) {
+    buf_ += unset_field;
   }
 
   template <class T, class U>
-  auto operator()(const T&, const U& x) const
-  -> std::enable_if_t<!std::is_same_v<U, caf::none_t>> {
-    out_ << to_string(x);
+  auto operator()(const T&, const U&)
+    -> std::enable_if_t<!std::is_same_v<U, view<caf::none_t>>> {
+    buf_ += "none";
   }
 
-  void operator()(const integer_type&, integer i) const {
-    out_ << i;
+  void operator()(const integer_type&, view<integer> i) {
+    print(buf_, i);
   }
 
-  void operator()(const count_type&, count c) const {
-    out_ << c;
+  void operator()(const count_type&, view<count> c) {
+    print(buf_, c);
   }
 
-  void operator()(const real_type&, real r) const {
-    auto p = real_printer<real, 6, 6>{};
-    auto out = std::ostreambuf_iterator<char>(out_);
-    p.print(out, r);
+  void operator()(const real_type&, view<real> r) {
+    print(buf_, r, decimal_places);
   }
 
-  void operator()(const timestamp_type&, timestamp ts) const {
+  void operator()(const timestamp_type&, view<timestamp> ts) {
     double d;
     convert(ts.time_since_epoch(), d);
-    auto p = real_printer<real, 6, 6>{};
-    auto out = std::ostreambuf_iterator<char>(out_);
-    p.print(out, d);
+    print(buf_, d, decimal_places);
   }
 
-  void operator()(const timespan_type&, timespan span) const {
+  void operator()(const timespan_type&, view<timespan> span) {
     double d;
     convert(span, d);
-    auto p = real_printer<real, 6, 6>{};
-    auto out = std::ostreambuf_iterator<char>(out_);
-    p.print(out, d);
+    print(buf_, d, decimal_places);
   }
 
-  void operator()(const string_type&, const std::string& str) const {
-    auto out = std::ostreambuf_iterator<char>{out_};
-    auto f = str.begin();
-    auto l = str.end();
-    for ( ; f != l; ++f)
-      if (!std::isprint(*f) || *f == separator || *f == set_separator)
-        detail::hex_escaper(f, out);
-      else
-        out_ << *f;
-  }
-
-  void operator()(const port_type&, const port& p) const {
-    out_ << p.number();
-  }
-
-  void operator()(const record_type& r, const vector& v) const {
-    VAST_ASSERT(!v.empty());
-    VAST_ASSERT(r.fields.size() == v.size());
-    caf::visit(*this, r.fields[0].type, v[0]);
-    for (auto i = 1u; i < v.size(); ++i) {
-      out_ << separator;
-      caf::visit(*this, r.fields[i].type, v[i]);
+  void operator()(const string_type&, view<std::string> str) {
+    for (auto c : str) {
+      if (!std::isprint(c) || c == separator || c == set_separator) {
+        auto hex = detail::byte_to_hex(c);
+        buf_ += "\\x";
+        buf_ += hex.first;
+        buf_ += hex.second;
+      } else {
+        buf_ += c;
+      }
     }
   }
 
-  void operator()(const vector_type& t, const vector& v) const {
-    stream(v, t.value_type, set_separator);
+  void operator()(const port_type&, view<port> p) {
+    print(buf_, integer{p.number()});
   }
 
-  void operator()(const set_type& t, const set& s) const {
-    stream(s, t.value_type, set_separator);
+  void operator()(const record_type&, const view<vector>&) {
+    VAST_ASSERT(!"table slices must have a flat layout.");
   }
 
-  void operator()(const map_type&, const map&) const {
+  void operator()(const vector_type& t, const view<vector>& xs) {
+    stream(xs, t.value_type);
+  }
+
+  void operator()(const set_type& t, const view<set>& xs) {
+    stream(xs, t.value_type);
+  }
+
+  void operator()(const map_type&, const map&) {
     VAST_ASSERT(!"not supported by Zeek's log format.");
   }
 
-  template <class Container, class Sep>
-  void stream(Container& c, const type& value_type, const Sep& sep) const {
-    if (c.empty()) {
-      // Cannot occur if we have a record
-      out_ << empty_field;
+  template <class Container>
+  void stream(Container& xs, const type& value_type) {
+    if (!xs || xs->empty()) {
+      buf_ += empty_field;
       return;
     }
-    auto f = c.begin();
-    auto l = c.end();
-    caf::visit(*this, value_type, *f);
-    while (++f != l) {
-      out_ << sep;
-      caf::visit(*this, value_type, *f);
+    auto i = xs.begin();
+    auto e = xs.end();
+    caf::visit(*this, value_type, *i);
+    for (++i; i != e; ++i) {
+      buf_ += set_separator;
+      caf::visit(*this, value_type, *i);
     }
   }
 
-  std::ostream& out_;
+private:
+  std::string& buf_;
 };
 
 } // namespace <anonymous>
@@ -564,10 +561,13 @@ writer::~writer() {
       *pair.second << footer;
 }
 
-expected<void> writer::write(const event& e) {
-  if (!caf::holds_alternative<record_type>(e.type()))
-    return make_error(ec::format_error, "cannot process non-record events");
+expected<void> writer::write(const event&) {
+  return ec::unimplemented;
+}
+
+caf::error writer::write(const table_slice& slice) {
   std::ostream* os = nullptr;
+  auto& layout = slice.layout();
   if (dir_.empty()) {
     if (streams_.empty()) {
       VAST_DEBUG(this, "creates a new stream for STDOUT");
@@ -576,17 +576,17 @@ expected<void> writer::write(const event& e) {
       streams_.emplace("", std::move(out));
     }
     os = streams_.begin()->second.get();
-    if (e.type() != previous_layout_) {
-      print_header(e.type(), *os);
-      previous_layout_ = e.type();
+    if (layout.name() != previous_layout_) {
+      print_header(layout, *os);
+      previous_layout_ = layout.name();
     }
   } else {
-    auto i = streams_.find(e.type().name());
+    auto i = streams_.find(layout.name());
     if (i != streams_.end()) {
       os = i->second.get();
       VAST_ASSERT(os != nullptr);
     } else {
-      VAST_DEBUG(this, "creates new stream for event", e.type().name());
+      VAST_DEBUG(this, "creates new stream for event", layout.name());
       if (!exists(dir_)) {
         auto d = mkdir(dir_);
         if (!d)
@@ -595,17 +595,26 @@ expected<void> writer::write(const event& e) {
         return make_error(ec::format_error, "got existing non-directory path",
                           dir_);
       }
-      auto filename = dir_ / (e.type().name() + ".log");
+      auto filename = dir_ / (layout.name() + ".log");
       auto fos = std::make_unique<std::ofstream>(filename.str());
-      print_header(e.type(), *fos);
-      auto i = streams_.emplace(e.type().name(), std::move(fos));
+      print_header(layout, *fos);
+      auto i = streams_.emplace(layout.name(), std::move(fos));
       os = i.first->second.get();
     }
   }
   VAST_ASSERT(os != nullptr);
-  caf::visit(streamer{*os}, e.type(), e.data());
-  *os << '\n';
-  return no_error;
+  streamer s{buf_};
+  for (size_t row = 0; row < slice.rows(); ++row) {
+    caf::visit(s, layout.fields[0].type, slice.at(row, 0));
+    for (size_t column = 1; column < slice.columns(); ++column) {
+      buf_ += separator;
+      caf::visit(s, layout.fields[0].type, slice.at(row, column));
+    }
+  }
+  buf_ += '\n';
+  *os << buf_;
+  buf_.clear();
+  return caf::none;
 }
 
 expected<void> writer::flush() {

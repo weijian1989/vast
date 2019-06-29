@@ -196,25 +196,19 @@ FIXTURE_SCOPE(zeek_writer_tests, fixtures::events)
 
 TEST(zeek writer) {
   // Sanity check some Zeek events.
-  CHECK_EQUAL(zeek_conn_log.size(), 20u);
-  CHECK_EQUAL(zeek_conn_log.front().type().name(), "zeek.conn");
-  auto record = caf::get_if<vector>(&zeek_conn_log.front().data());
-  REQUIRE(record);
-  REQUIRE_EQUAL(record->size(), 20u);
-  CHECK_EQUAL(record->at(6), data{"udp"}); // one after the conn record
-  CHECK_EQUAL(record->back(), data{set{}}); // table[T] is actually a set
+  CHECK_EQUAL(zeek_conn_log_slices.front()->layout().name(), "zeek.conn");
   // Perform the writing.
   auto dir = path{"vast-unit-test-zeek"};
   auto guard = caf::detail::make_scope_guard([&] { rm(dir); });
   format::zeek::writer writer{dir};
-  for (auto& e : zeek_conn_log)
-    if (!writer.write(e))
-      FAIL("failed to write event");
-  for (auto& e : zeek_http_log)
-    if (!writer.write(e))
-      FAIL("failed to write event");
-  CHECK(exists(dir / zeek_conn_log[0].type().name() + ".log"));
-  CHECK(exists(dir / zeek_http_log[0].type().name() + ".log"));
+  for (auto& slice : zeek_conn_log_slices)
+    if (auto err = writer.write(*slice))
+      FAIL("failed to write conn table slice: " << to_string(err));
+  for (auto& slice: zeek_http_log_slices)
+    if (auto err = writer.write(*slice))
+      FAIL("failed to write HTTP table slice: " << to_string(err));
+  CHECK(exists(dir / zeek_conn_log_slices[0]->layout().name() + ".log"));
+  CHECK(exists(dir / zeek_http_log_slices[0]->layout().name() + ".log"));
 }
 
 FIXTURE_SCOPE_END()

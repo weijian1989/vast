@@ -281,13 +281,16 @@ public:
 
   expected<void> write(const event& e) override;
 
+  caf::error write(const table_slice& slice) override;
+
   expected<void> flush() override;
 
   const char* name() const override;
 
 private:
+  std::string buf_;
   path dir_;
-  type previous_layout_;
+  std::string previous_layout_;
   std::unordered_map<std::string, std::unique_ptr<std::ostream>> streams_;
 };
 

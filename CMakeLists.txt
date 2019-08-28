@@ -432,26 +432,6 @@ if (NOT CAF_ROOT_DIR AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/aux/caf/CMakeLists.t
     set(CAF_BUILD_STATIC_ONLY TRUE)
   endif ()
   add_subdirectory(aux/caf)
-  add_library(caf::core ALIAS libcaf_core_${_linkage_suffix})
-  add_library(caf::io ALIAS libcaf_io_${_linkage_suffix})
-  install(TARGETS libcaf_core_${_linkage_suffix} libcaf_io_${_linkage_suffix}
-          EXPORT VASTTargets
-          ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-          LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-          RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-  if (TARGET libcaf_openssl_${_linkage_suffix})
-    target_include_directories(
-      libcaf_openssl_${_linkage_suffix}
-      PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>/aux/caf/libcaf_openssl
-             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-    add_library(caf::openssl ALIAS libcaf_openssl_${_linkage_suffix})
-    install(TARGETS libcaf_openssl_${_linkage_suffix}
-            EXPORT VASTTargets
-            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    set(VAST_USE_OPENSSL true)
-  endif ()
   add_library(caf::test INTERFACE IMPORTED)
   set_target_properties(caf::test PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/aux/caf/libcaf_test

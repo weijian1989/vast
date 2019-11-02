@@ -677,11 +677,17 @@ data_view arrow_table_slice::at(size_type row, size_type col) const {
   return value_at(layout().fields[col].type, *arr, row);
 }
 
-void arrow_table_slice::append_column_to_index(size_type col,
+void arrow_table_slice::append_column_to_index(std::string_view col,
                                                value_index& idx) const {
+  auto os = layout().resolve(col);
+  if (!os)
+    return;
+  auto c = layout().flat_index_at(*os);
+  if (!c)
+    return;
   index_applier f{offset(), idx};
-  auto arr = batch_->column(detail::narrow_cast<int>(col));
-  decode(layout().fields[col].type, *arr, f);
+  auto arr = batch_->column(*c);
+  decode(layout().fields[*c].type, *arr, f);
 }
 
 } // namespace vast

@@ -148,7 +148,7 @@ struct index_state {
   partition_ptr make_partition(uuid id);
 
   /// @returns a new INDEXER actor.
-  caf::actor make_indexer(path dir, type column_type, size_t column,
+  caf::actor make_indexer(path dir, type column_type, std::string column,
                           uuid partition_id, atomic_measurement* m);
 
   /// Decrements the indexer count for a partition.

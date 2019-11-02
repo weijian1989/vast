@@ -312,14 +312,16 @@ partition_ptr index_state::make_partition(uuid id) {
   return std::make_unique<partition>(this, std::move(id), max_partition_size);
 }
 
-caf::actor index_state::make_indexer(path dir, type column_type, size_t column,
-                                     uuid partition_id, atomic_measurement* m) {
+caf::actor
+index_state::make_indexer(path dir, type column_type, std::string column,
+                          uuid partition_id, atomic_measurement* m) {
   VAST_TRACE(VAST_ARG(dir), VAST_ARG(column_type), VAST_ARG(column),
              VAST_ARG(index), VAST_ARG(partition_id));
   caf::settings index_opts;
   index_opts["cardinality"] = max_partition_size;
   return factory(self, std::move(dir), std::move(column_type),
-                 std::move(index_opts), column, self, partition_id, m);
+                 std::move(index_opts), std::move(column), self, partition_id,
+                 m);
 }
 
 void index_state::decrement_indexer_count(uuid partition_id) {

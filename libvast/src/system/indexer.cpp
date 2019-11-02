@@ -13,12 +13,9 @@
 
 #include "vast/system/indexer.hpp"
 
-#include <new>
-
-#include <caf/all.hpp>
-
 #include "vast/concept/printable/stream.hpp"
 #include "vast/concept/printable/vast/expression.hpp"
+#include "vast/concept/printable/vast/type.hpp"
 #include "vast/detail/assert.hpp"
 #include "vast/expression.hpp"
 #include "vast/filesystem.hpp"
@@ -26,7 +23,12 @@
 #include "vast/system/atoms.hpp"
 #include "vast/system/instrumentation.hpp"
 #include "vast/table_slice.hpp"
+#include "vast/type.hpp"
 #include "vast/view.hpp"
+
+#include <caf/all.hpp>
+
+#include <new>
 
 using namespace caf;
 
@@ -40,27 +42,28 @@ indexer_state::~indexer_state() {
   col.~column_index();
 }
 
-caf::error
-indexer_state::init(event_based_actor* self, path filename, type column_type,
-                    caf::settings index_opts, size_t column, caf::actor index,
-                    uuid partition_id, atomic_measurement* m) {
+caf::error indexer_state::init(event_based_actor* self, path filename,
+                               type column_type, caf::settings index_opts,
+                               std::string column, caf::actor index,
+                               uuid partition_id, atomic_measurement* m) {
   this->index = std::move(index);
   this->partition_id = partition_id;
   this->measurement = m;
-  new (&col) column_index(self->system(), std::move(column_type),
-                          std::move(index_opts), std::move(filename), column);
+  new (&col)
+    column_index(self->system(), std::move(column_type), std::move(index_opts),
+                 std::move(filename), std::move(column));
   return col.init();
 }
 
 behavior indexer(stateful_actor<indexer_state>* self, path dir,
-                 type column_type, caf::settings index_opts, size_t column,
+                 type column_type, caf::settings index_opts, std::string column,
                  caf::actor index, uuid partition_id, atomic_measurement* m) {
   VAST_TRACE(VAST_ARG(dir), VAST_ARG(column_type), VAST_ARG(column));
   VAST_DEBUG(self, "operates for column", column, "of type", column_type);
   if (auto err = self->state.init(
-        self, std::move(dir) / "fields" / std::to_string(column),
-        std::move(column_type), std::move(index_opts), column, std::move(index),
-        partition_id, m)) {
+        self, std::move(dir) / "fields" / column + "-" + to_digest(column_type),
+        std::move(column_type), std::move(index_opts), std::move(column),
+        std::move(index), partition_id, m)) {
     self->quit(std::move(err));
     return {};
   }

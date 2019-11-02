@@ -26,7 +26,7 @@ namespace vast::system {
 /// @param dir Base directory for persistent state.
 /// @param column_type The type of the indexed field.
 /// @param index_opts Runtime options to parameterize the value index.
-/// @param column The column ID for the indexed field.
+/// @param column The name of the indexed field.
 /// @param index A handle to the index actor.
 /// @param partition_id The partition ID that this INDEXER belongs to.
 /// @param m A pointer to the measuring probe used for perfomance data
@@ -34,7 +34,7 @@ namespace vast::system {
 /// @returns the new INDEXER actor.
 caf::actor
 spawn_indexer(caf::local_actor* parent, path dir, type column_type,
-              caf::settings index_opts, size_t column, caf::actor index,
+              caf::settings index_opts, std::string column, caf::actor index,
               uuid partition_id, atomic_measurement* m);
 
 } // namespace vast::system

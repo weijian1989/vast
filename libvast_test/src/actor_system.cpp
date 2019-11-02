@@ -13,12 +13,13 @@
 
 #include "fixtures/actor_system.hpp"
 
-#include <caf/io/middleman.hpp>
-
+#include "vast/detail/assert.hpp"
 #include "vast/system/atoms.hpp"
 #include "vast/system/profiler.hpp"
 
-#include "vast/detail/assert.hpp"
+#include <caf/io/middleman.hpp>
+
+#include "caf/none.hpp"
 
 namespace fixtures {
 
@@ -31,6 +32,14 @@ test_configuration::test_configuration() {
   // Always begin with an empy log file.
   if (vast::exists(log_file))
     vast::rm(log_file);
+}
+
+caf::error test_configuration::parse(int argc, char** argv) {
+  for (int i = 0; i < argc; i++) {
+    std::cerr << "argument : " << argv[i] << '\n';
+  }
+  set("logger.file-verbosity", caf::atom("trace"));
+  return caf::none;
 }
 
 /// A fixture with an actor system that uses the default work-stealing
@@ -73,4 +82,3 @@ deterministic_actor_system::deterministic_actor_system() {
 }
 
 } // namespace fixtures
-

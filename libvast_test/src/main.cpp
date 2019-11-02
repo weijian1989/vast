@@ -94,6 +94,8 @@ int main(int argc, char** argv) {
       break;
     }
   }
+  char* argv_[] = {"--logger.file-verbosity=trace"};
+  caf::test::engine::args(1, argv_);
   if (start != argc) {
     auto res
       = caf::message_builder(argv + start, argv + argc)

@@ -121,10 +121,14 @@ caf::error table_slice::load(chunk_ptr chunk) {
   return deserialize(source);
 }
 
-void table_slice::append_column_to_index(size_type col,
+void table_slice::append_column_to_index(std::string_view col,
                                          value_index& idx) const {
+  auto val = column(col);
+  if (!val)
+    return;
+  auto xs = *val;
   for (size_type row = 0; row < rows(); ++row)
-    idx.append(at(row, col), offset() + row);
+    idx.append(xs[row], offset() + row);
 }
 
 caf::expected<std::vector<table_slice_ptr>>

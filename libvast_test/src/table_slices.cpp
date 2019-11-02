@@ -185,7 +185,7 @@ void table_slices::test_append_column_to_index() {
   auto idx = factory<value_index>::make(integer_type{}, caf::settings{});
   REQUIRE_NOT_EQUAL(idx, nullptr);
   auto slice = make_slice();
-  slice->append_column_to_index(1, *idx);
+  slice->append_column_to_index("b", *idx);
   CHECK_EQUAL(idx->offset(), 2u);
   constexpr auto less = relational_operator::less;
   CHECK_EQUAL(unbox(idx->lookup(less, make_view(3))), make_ids({1}));

@@ -34,7 +34,7 @@ namespace vast {
 /// @relates column_index
 caf::expected<column_index_ptr>
 make_column_index(caf::actor_system& sys, path filename, type column_type,
-                  caf::settings index_opts, size_t column);
+                  caf::settings index_opts, std::string column);
 
 // -- class definition ---------------------------------------------------------
 
@@ -45,7 +45,7 @@ public:
   // -- constructors, destructors, and assignment operators --------------------
 
   column_index(caf::actor_system& sys, type index_type,
-               caf::settings index_opts, path filename, size_t column);
+               caf::settings index_opts, path filename, std::string column);
 
   ~column_index();
 
@@ -97,9 +97,9 @@ public:
   }
 
   /// Returns the position of this column in the layout.
-  size_t position() const noexcept {
-    return col_;
-  }
+  // size_t position() const noexcept {
+  //  return col_;
+  //}
 
   /// Returns whether the column index has unpersisted changes.
   /// @pre `init()` was called and returned no error
@@ -109,7 +109,7 @@ protected:
   // -- member variables -------------------------------------------------------
 
   value_index_ptr idx_;
-  size_t col_;
+  std::string column_;
   bool has_skip_attribute_;
   type index_type_;
   caf::settings index_opts_;

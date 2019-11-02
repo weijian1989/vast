@@ -99,8 +99,8 @@ caf::actor& table_indexer::indexer_at(size_t column) {
   VAST_ASSERT(column < indexers_.size());
   auto& result = indexers_[column];
   if (!result) {
-    result = state().make_indexer(column_file(column),
-                                  layout().fields[column].type, column,
+    auto& field = layout().fields[column];
+    result = state().make_indexer(column_file(column), field.type, field.name,
                                   partition_->id(), &measurements_[column]);
     VAST_ASSERT(result != nullptr);
   }

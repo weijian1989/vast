@@ -68,7 +68,7 @@ public:
   caf::error deserialize(caf::deserializer& source) override;
 
   void
-  append_column_to_index(size_type col, vast::value_index& idx) const override;
+  append_column_to_index(std::string_view col, value_index& idx) const override;
 
   caf::atom_value implementation_id() const noexcept override;
 

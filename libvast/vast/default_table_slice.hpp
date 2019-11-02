@@ -55,7 +55,8 @@ public:
   // -- visitation -------------------------------------------------------------
 
   /// Applies all values in column `col` to `idx`.
-  void append_column_to_index(size_type col, value_index& idx) const final;
+  void
+  append_column_to_index(std::string_view col, value_index& idx) const final;
 
   // -- properties -------------------------------------------------------------
 

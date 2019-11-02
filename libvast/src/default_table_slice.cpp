@@ -33,10 +33,14 @@ caf::error default_table_slice::deserialize(caf::deserializer& source) {
   return source(xs_);
 }
 
-void default_table_slice::append_column_to_index(size_type col,
+void default_table_slice::append_column_to_index(std::string_view col,
                                                  value_index& idx) const {
+  auto val = column(col);
+  if (!val)
+    return;
+  auto xs = *val;
   for (size_type row = 0; row < rows(); ++row)
-    idx.append(make_view(caf::get<vector>(xs_[row])[col]), offset() + row);
+    idx.append(xs[row], offset() + row);
 }
 
 data_view default_table_slice::at(size_type row, size_type col) const {

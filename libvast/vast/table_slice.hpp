@@ -132,8 +132,9 @@ public:
 
   // -- visitation -------------------------------------------------------------
 
-  /// Appends all values in column `col` to `idx`.
-  virtual void append_column_to_index(size_type col, value_index& idx) const;
+  /// Appends all values in column `field` to `idx`.
+  virtual void
+  append_column_to_index(std::string_view field, value_index& idx) const;
 
   // -- properties -------------------------------------------------------------
 

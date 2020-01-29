@@ -13,16 +13,16 @@
 
 #include "vast/system/indexer_stage_driver.hpp"
 
-#include <caf/downstream.hpp>
-#include <caf/event_based_actor.hpp>
-#include <caf/scheduled_actor.hpp>
-#include <caf/stream_manager.hpp>
-
 #include "vast/logger.hpp"
 #include "vast/meta_index.hpp"
 #include "vast/system/index.hpp"
 #include "vast/system/partition.hpp"
 #include "vast/table_slice.hpp"
+
+#include <caf/downstream.hpp>
+#include <caf/event_based_actor.hpp>
+#include <caf/scheduled_actor.hpp>
+#include <caf/stream_manager.hpp>
 
 namespace vast::system {
 
@@ -55,30 +55,44 @@ void indexer_stage_driver::process(downstream_type& out, batch_type& slices) {
     auto& layout = slice->layout();
     st.stats.layouts[layout.name()].count += slice->rows();
     // Start new INDEXER actors when needed and add it to the stream.
-    if (auto ti = st.active->get_or_add(layout)) {
-      auto [meta_x, added] = *ti;
+    for (auto field : layout.fields) {
+      if (has_skip_attribute(field.type))
+        continue;
+      auto indexer = st.active->get(field);
+      if (!indexer)
+        continue;
+      auto [ci, added] = *indexer;
       if (added) {
-        VAST_DEBUG(st.self, "added a new table_indexer for layout", layout);
-        if (auto err = meta_x.init()) {
-          VAST_ERROR(st.self, "failed to initialize table_indexer for layout",
-                     layout, "-> all incoming logs get dropped!");
-        } else {
-          meta_x.spawn_indexers();
-          for (auto& x : meta_x.indexers()) {
-            // We'll have invalid handles at all fields with skip attribute.
-            if (x) {
-              auto slt = out_.parent()
-                           ->add_unchecked_outbound_path<output_type>(x);
-              VAST_DEBUG(st.self, "spawned new INDEXER at slot", slt);
-              out_.set_filter(slt, layout);
-              st.active_partition_indexers++;
-            }
-          }
-        }
+        auto slt = out_.parent()->add_unchecked_outbound_path<output_type>(ci);
+        VAST_DEBUG(st.self, "spawned new INDEXER at slot", slt);
+        out_.set_filter(slt, layout);
+        st.active_partition_indexers++;
       }
-      // Add all rows IDs to the meta indexer.
-      meta_x.add(slice);
     }
+    // if (auto ti = st.active->get_or_add(layout)) {
+    //  auto [meta_x, added] = *ti;
+    //  if (added) {
+    //    VAST_DEBUG(st.self, "added a new table_indexer for layout", layout);
+    //    if (auto err = meta_x.init()) {
+    //      VAST_ERROR(st.self, "failed to initialize table_indexer for layout",
+    //                 layout, "-> all incoming logs get dropped!");
+    //    } else {
+    //      meta_x.spawn_indexers();
+    //      for (auto& x : meta_x.indexers()) {
+    //        // We'll have invalid handles at all fields with skip attribute.
+    //        if (x) {
+    //          auto slt = out_.parent()
+    //                       ->add_unchecked_outbound_path<output_type>(x);
+    //          VAST_DEBUG(st.self, "spawned new INDEXER at slot", slt);
+    //          out_.set_filter(slt, layout);
+    //          st.active_partition_indexers++;
+    //        }
+    //      }
+    //    }
+    //  }
+    //  // Add all rows IDs to the meta indexer.
+    //  meta_x.add(slice);
+    //}
     // Ship event to the INDEXER actors.
     auto slice_size = slice->rows();
     out.push(std::move(slice));

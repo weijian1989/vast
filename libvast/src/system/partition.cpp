@@ -13,11 +13,7 @@
 
 #include "vast/system/partition.hpp"
 
-#include <caf/event_based_actor.hpp>
-#include <caf/local_actor.hpp>
-#include <caf/make_counted.hpp>
-#include <caf/stateful_actor.hpp>
-
+#include "vast/concept/hashable/xxhash.hpp"
 #include "vast/concept/printable/to_string.hpp"
 #include "vast/concept/printable/vast/expression.hpp"
 #include "vast/concept/printable/vast/uuid.hpp"
@@ -33,6 +29,12 @@
 #include "vast/system/spawn_indexer.hpp"
 #include "vast/system/table_indexer.hpp"
 #include "vast/time.hpp"
+#include "vast/type.hpp"
+
+#include <caf/event_based_actor.hpp>
+#include <caf/local_actor.hpp>
+#include <caf/make_counted.hpp>
+#include <caf/stateful_actor.hpp>
 
 using namespace std::chrono;
 using namespace caf;
@@ -207,6 +209,25 @@ path partition::base_dir() const {
 
 path partition::meta_file() const {
   return base_dir() / "meta";
+}
+
+path partition::column_file(const record_field& field) const {
+  return base_dir() / (field.name + "-" + to_string(uhash<xxhash64>{}(field)));
+}
+
+caf::expected<std::pair<caf::actor, bool>>
+partition::get(const record_field& field) {
+  using ret_t = std::pair<caf::actor, bool>;
+  auto i = indexers_.find(field);
+  if (i != indexers_.end())
+    return ret_t{i->second, false};
+  auto atmc = &measurements_[field];
+  auto indexer = state().make_indexer(column_file(field), field.type,
+                                      field.name, id(), atmc);
+  if (!indexer)
+    return make_error(ec::unspecified, "failed to create column index");
+  indexers_.emplace(field, indexer);
+  return ret_t{indexer, true};
 }
 
 caf::expected<std::pair<table_indexer&, bool>>

@@ -113,6 +113,11 @@ public:
   caf::expected<std::pair<table_indexer&, bool>>
   get_or_add(const record_type& key);
 
+  /// @returns the file name for `column`.
+  path column_file(const record_field& field) const;
+
+  caf::expected<std::pair<caf::actor, bool>> get(const record_field& field);
+
   // -- operations -------------------------------------------------------------
 
   /// Iterates over all INDEXER actors that are managed by this partition.
@@ -146,6 +151,14 @@ private:
 
   /// Stores one table indexer per layout that in turn manages INDEXER actors.
   table_indexer_map table_indexers_;
+
+  /// A map to the indexers.
+  caf::detail::unordered_flat_map<record_field, caf::actor> indexers_;
+
+  /// Instrumentation data store for the layout. One entry for each INDEXER.
+  // caf::detail::unordered_flat_map<record_field, atomic_measurement>
+  //  measurements_;
+  std::unordered_map<record_field, atomic_measurement> measurements_;
 
   /// Remaining capacity in this partition.
   size_t capacity_;

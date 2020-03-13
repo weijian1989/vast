@@ -178,11 +178,12 @@ void collect_component_status(node_actor* self,
 caf::message status_command(const command::invocation&, caf::actor_system&) {
   auto self = this_node;
   auto rp = self->make_response_promise();
-  self->request(self->state.tracker, infinite, get_atom::value).then(
-    [=](registry& reg) mutable {
+  self
+    ->request<caf::message_priority::high>(self->state.tracker, infinite,
+                                           get_atom::value)
+    .then([=](registry& reg) mutable {
       collect_component_status(self, std::move(rp), reg);
-    }
-  );
+    });
   return caf::none;
 }
 

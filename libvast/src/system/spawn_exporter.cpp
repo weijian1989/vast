@@ -46,13 +46,16 @@ maybe_actor spawn_exporter(node_actor* self, spawn_arguments& args) {
   auto max_events = get_or(args.invocation.options, "export.max-events",
                            defaults::export_::max_events);
   if (max_events > 0)
-    caf::anon_send(exp, extract_atom::value, static_cast<uint64_t>(max_events));
+    caf::anon_send<caf::message_priority::high>(
+      exp, extract_atom::value, static_cast<uint64_t>(max_events));
   else
-    caf::anon_send(exp, extract_atom::value);
+    caf::anon_send<caf::message_priority::high>(exp, extract_atom::value);
   // Send the running IMPORTERs to the EXPORTER if it handles a continous query.
   if (has_continuous_option(query_opts)) {
-    self->request(self->state.tracker, caf::infinite, get_atom::value).then(
-      [=](registry& reg) mutable {
+    self
+      ->request<caf::message_priority::high>(self->state.tracker, caf::infinite,
+                                             get_atom::value)
+      .then([=](registry& reg) mutable {
         VAST_DEBUG(self, "looks for importers");
         auto& local = reg.components[self->state.name];
         const std::string wanted = "importer";
@@ -62,8 +65,7 @@ maybe_actor spawn_exporter(node_actor* self, spawn_arguments& args) {
             importers.push_back(state.actor);
         if (!importers.empty())
           self->send(exp, importer_atom::value, std::move(importers));
-      }
-    );
+      });
   }
   return exp;
 }

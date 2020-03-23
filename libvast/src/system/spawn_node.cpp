@@ -43,7 +43,9 @@ spawn_node(caf::scoped_actor& self, const caf::settings& opts) {
     caf::error result;
     auto invocation
       = command::invocation{opts, "spawn "s + std::move(name), {}};
-    self->request(node.get(), caf::infinite, std::move(invocation))
+    self
+      ->request(node.get(), defaults::system::request_timeout,
+                std::move(invocation))
       .receive([](const caf::actor&) { /* nop */ },
                [&](caf::error& e) { result = std::move(e); });
     return result;

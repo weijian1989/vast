@@ -48,7 +48,8 @@ void node::ingest(const std::string& type) {
   // Get the importer from the node.
   MESSAGE("getting importer from node");
   caf::actor importer;
-  auto rh = self->request(test_node, caf::infinite, caf::get_atom::value);
+  auto rh = self->request(test_node, defaults::system::request_timeout,
+                          caf::get_atom::value);
   run();
   rh.receive(
     [&](const std::string& id, system::registry& reg) {

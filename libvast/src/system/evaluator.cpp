@@ -13,14 +13,15 @@
 
 #include "vast/system/evaluator.hpp"
 
+#include "vast/defaults.hpp"
+#include "vast/expression_visitors.hpp"
+#include "vast/logger.hpp"
+#include "vast/system/atoms.hpp"
+
 #include <caf/actor.hpp>
 #include <caf/behavior.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
-
-#include "vast/expression_visitors.hpp"
-#include "vast/logger.hpp"
-#include "vast/system/atoms.hpp"
 
 namespace vast::system {
 
@@ -170,7 +171,7 @@ caf::behavior evaluator(caf::stateful_actor<evaluator_state>* self,
         auto& curried_pred = get<1>(triple);
         auto& indexer = get<2>(triple);
         st.predicate_hits[pos].first += 1;
-        self->request(indexer, caf::infinite, curried_pred)
+        self->request(indexer, defaults::system::request_timeout, curried_pred)
           .then([=](const ids& hits) { self->state.handle_result(pos, hits); },
                 [=](const caf::error& err) {
                   self->state.handle_missing_result(pos, err);

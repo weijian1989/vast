@@ -40,7 +40,9 @@ spawn_counter(system::node_actor* self, system::spawn_arguments& args) {
   caf::actor index;
   system::archive_type archive;
   caf::scoped_actor blocking{self->system()};
-  blocking->request(self->state.tracker, caf::infinite, caf::get_atom::value)
+  blocking
+    ->request(self->state.tracker, defaults::system::request_timeout,
+              caf::get_atom::value)
     .receive(
       [&](system::registry& reg) {
         VAST_DEBUG(self, "looks for index and archive");

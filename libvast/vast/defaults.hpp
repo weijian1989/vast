@@ -352,9 +352,12 @@ constexpr size_t initially_requested_ids = 128;
 constexpr std::chrono::milliseconds telemetry_rate = std::chrono::milliseconds{
   1000};
 
-// Interval between checks whether a signal occured.
+/// Interval between checks whether a signal occured.
 constexpr std::chrono::milliseconds signal_monitoring_interval
   = std::chrono::milliseconds{750};
+
+/// Time after which a request is considered to have failed.
+constexpr std::chrono::seconds request_timeout = std::chrono::seconds{10};
 
 } // namespace system
 

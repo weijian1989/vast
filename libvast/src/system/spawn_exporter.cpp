@@ -51,8 +51,10 @@ maybe_actor spawn_exporter(node_actor* self, spawn_arguments& args) {
     caf::anon_send(exp, extract_atom::value);
   // Send the running IMPORTERs to the EXPORTER if it handles a continous query.
   if (has_continuous_option(query_opts)) {
-    self->request(self->state.tracker, caf::infinite, get_atom::value).then(
-      [=](registry& reg) mutable {
+    self
+      ->request(self->state.tracker, defaults::system::request_timeout,
+                get_atom::value)
+      .then([=](registry& reg) mutable {
         VAST_DEBUG(self, "looks for importers");
         auto& local = reg.components[self->state.name];
         const std::string wanted = "importer";
@@ -62,8 +64,7 @@ maybe_actor spawn_exporter(node_actor* self, spawn_arguments& args) {
             importers.push_back(state.actor);
         if (!importers.empty())
           self->send(exp, importer_atom::value, std::move(importers));
-      }
-    );
+      });
   }
   return exp;
 }
